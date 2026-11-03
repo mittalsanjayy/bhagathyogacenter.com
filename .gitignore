@@ -1,0 +1,11 @@
+node_modules/
+.data/
+npm-debug.log*
+
+# Secrets: never commit these. `vercel env pull` writes .env.local.
+.env
+.env.*
+!.env.example
+
+# Vercel CLI project link
+.vercel/
