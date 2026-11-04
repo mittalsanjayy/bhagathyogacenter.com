@@ -337,7 +337,6 @@ p { margin-bottom: 1rem; }
 /* Motion */
 .js .reveal { opacity: 0; transform: translateY(22px); transition: opacity .75s var(--ease), transform .75s var(--ease); }
 .js .reveal.is-visible { opacity: 1; transform: none; }
-.gsap-ready .reveal { transition: none; }
 @keyframes scroll-nudge { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(3px); } }
 @keyframes answer-reveal { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: translateY(0); } }
 

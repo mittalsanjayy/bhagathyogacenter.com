@@ -457,3 +457,10 @@ font-size: 8px;
 padding: 35px 19px;
 }
 }
+
+@media (prefers-reduced-motion: reduce) {
+.booking-card,
+.decorative-symbol {
+animation: none;
+}
+}

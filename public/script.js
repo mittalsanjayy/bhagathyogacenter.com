@@ -274,7 +274,7 @@ lightbox.addEventListener("close", () => {
   if (lastGalleryTrigger) lastGalleryTrigger.focus();
 });
 
-/* Validate and send the enquiry through the configured EmailJS template. */
+/* Validate the enquiry and prepare it for WhatsApp. */
 
 const form = document.getElementById("enquiry-form");
 const formStatus = document.getElementById("form-status");
@@ -292,6 +292,10 @@ if (form && formStatus) {
     phone: {
       element: form.elements.phone,
       error: document.getElementById("phone-error")
+    },
+    interest: {
+      element: form.elements.interest,
+      error: null
     },
     message: {
       element: form.elements.message,
@@ -316,6 +320,11 @@ if (form && formStatus) {
         ? ""
         : "Enter a valid 10-digit Indian mobile number.",
 
+    interest: value =>
+      value.trim()
+        ? ""
+        : "Please select what you're interested in.",
+
     message: value =>
       value.trim().length >= 5
         ? ""
@@ -339,7 +348,7 @@ if (form && formStatus) {
   }
 
   Object.entries(fields).forEach(([key, field]) => {
-    field.element.addEventListener("input", () => {
+    field.element.addEventListener(key === "interest" ? "change" : "input", () => {
       if (field.element.getAttribute("aria-invalid") === "true") {
         validateField(key);
       }
@@ -354,7 +363,16 @@ if (form && formStatus) {
   const submitLabelDefault = submitLabel.textContent;
   let submitting = false;
 
-  form.addEventListener("submit", async event => {
+  function showWhatsAppFallback(url) {
+    const fallbackLink = document.createElement("a");
+    fallbackLink.href = url;
+    fallbackLink.target = "_blank";
+    fallbackLink.rel = "noopener noreferrer";
+    fallbackLink.textContent = "Continue in WhatsApp to send your enquiry";
+    formStatus.replaceChildren(fallbackLink);
+  }
+
+  form.addEventListener("submit", event => {
     event.preventDefault();
     if (submitting) return;
 
@@ -371,7 +389,10 @@ if (form && formStatus) {
         firstInvalid.focus();
       }
 
-      formStatus.textContent = "";
+      formStatus.textContent =
+        fields.interest.element.getAttribute("aria-invalid") === "true"
+          ? "Please select an enquiry category."
+          : "";
       formStatus.removeAttribute("data-state");
       return;
     }
@@ -380,29 +401,40 @@ if (form && formStatus) {
     submitButton.disabled = true;
     submitButton.setAttribute("aria-busy", "true");
     form.setAttribute("aria-busy", "true");
-    submitLabel.textContent = "Sending enquiry...";
-    formStatus.textContent = "Sending your enquiry...";
+    submitLabel.textContent = "Opening WhatsApp...";
+    formStatus.textContent = "Opening WhatsApp...";
     formStatus.removeAttribute("data-state");
 
     try {
-      await window.BHAGATH_EMAILJS.send(form);
-      formStatus.textContent = "Thank you! Your enquiry has been sent successfully. We will contact you soon.";
-      formStatus.dataset.state = "success";
-      form.reset();
-      Object.values(fields).forEach(field => {
-        field.error.textContent = "";
-        field.element.removeAttribute("aria-invalid");
-      });
-    } catch (error) {
-      const emailJSError = error && typeof error === "object" ? error : {};
-      console.error("EmailJS enquiry submission failed:", {
-        code: emailJSError.code || emailJSError.status || "unknown",
-        status: emailJSError.status || "unknown",
-        message: emailJSError.message || emailJSError.text || String(error),
-        response: emailJSError.text || "No response body"
-      });
-      formStatus.textContent = "We couldn't send your enquiry right now. Please try again or contact Bhagath Yoga Center directly.";
-      formStatus.dataset.state = "error";
+      const message = [
+        "Hello Bhagath Yoga Center,",
+        "",
+        "I would like to make an enquiry.",
+        "",
+        `Name: ${fields.name.element.value.trim()}`,
+        `Email: ${fields.email.element.value.trim()}`,
+        `Phone: ${fields.phone.element.value.trim()}`,
+        `Interested in: ${fields.interest.element.value.trim()}`,
+        "",
+        "Message:",
+        fields.message.element.value.trim()
+      ].join("\n");
+      const whatsappUrl = `https://wa.me/918971669320?text=${encodeURIComponent(message)}`;
+      let whatsappWindow = null;
+
+      try {
+        whatsappWindow = window.open(whatsappUrl, "_blank");
+        if (whatsappWindow) whatsappWindow.opener = null;
+      } catch (error) {
+        console.warn("Unable to open WhatsApp directly; showing a link instead.", error);
+      }
+
+      if (whatsappWindow) {
+        formStatus.textContent = "WhatsApp is open with your enquiry. Review it and tap Send to complete.";
+        formStatus.dataset.state = "success";
+      } else {
+        showWhatsAppFallback(whatsappUrl);
+      }
     } finally {
       submitting = false;
       submitButton.disabled = false;

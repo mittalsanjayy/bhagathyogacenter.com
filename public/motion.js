@@ -1,6 +1,5 @@
 (() => {
   const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  if (reducedMotion) return;
 
   const animatedSelectors = [
     ".section-heading",
@@ -39,44 +38,65 @@
   });
 
   const revealElements = [...document.querySelectorAll(".reveal")];
-  const hasGsap = Boolean(window.gsap && window.ScrollTrigger);
+  if (reducedMotion) {
+    revealElements.forEach(element => element.classList.add("is-visible"));
+    return;
+  }
 
-  if (!hasGsap) {
-    if (!("IntersectionObserver" in window)) return;
-    document.documentElement.classList.add("js");
-    const observer = new IntersectionObserver((entries, currentObserver) => {
+  let observer;
+  let fallbackTimer;
+  let scrollFrame;
+  let schedulePassedElementCheck;
+  const revealAll = () => {
+    window.clearTimeout(fallbackTimer);
+    window.cancelAnimationFrame(scrollFrame);
+    observer?.disconnect();
+    if (schedulePassedElementCheck) {
+      window.removeEventListener("scroll", schedulePassedElementCheck);
+      window.removeEventListener("resize", schedulePassedElementCheck);
+    }
+    revealElements.forEach(element => element.classList.add("is-visible"));
+  };
+
+  if ("IntersectionObserver" in window) {
+    const revealPassedElements = () => {
+      scrollFrame = undefined;
+      revealElements.forEach(element => {
+        if (element.classList.contains("is-visible")) return;
+        if (element.getBoundingClientRect().top > window.innerHeight + 160) return;
+        element.classList.add("is-visible");
+        observer.unobserve(element);
+      });
+    };
+    schedulePassedElementCheck = () => {
+      if (scrollFrame !== undefined) return;
+      scrollFrame = window.requestAnimationFrame(revealPassedElements);
+    };
+
+    observer = new IntersectionObserver((entries, currentObserver) => {
       entries.forEach(entry => {
         if (!entry.isIntersecting) return;
         entry.target.classList.add("is-visible");
         currentObserver.unobserve(entry.target);
       });
-    }, { threshold: 0.12 });
+    }, { rootMargin: "0px 0px 160px 0px", threshold: 0.01 });
     revealElements.forEach(element => observer.observe(element));
-    window.addEventListener("pagehide", () => observer.disconnect(), { once: true });
-    return;
+    document.documentElement.classList.add("js");
+    fallbackTimer = window.setTimeout(revealAll, 2500);
+    window.addEventListener("scroll", schedulePassedElementCheck, { passive: true });
+    window.addEventListener("resize", schedulePassedElementCheck, { passive: true });
+    window.addEventListener("pageshow", event => {
+      if (event.persisted) revealAll();
+    });
+  } else {
+    revealAll();
   }
 
-  document.documentElement.classList.add("js", "gsap-ready");
+  if (!window.gsap || !window.ScrollTrigger) return;
+
   window.gsap.registerPlugin(window.ScrollTrigger);
-
-  const context = window.gsap.context(() => {
+  window.gsap.context(() => {
     const { gsap, ScrollTrigger } = window;
-    gsap.set(revealElements, { autoAlpha: 0, y: 24 });
-
-    if (revealElements.length) {
-      ScrollTrigger.batch(revealElements, {
-        start: "top bottom",
-        once: true,
-        onEnter: elements => gsap.to(elements, {
-          autoAlpha: 1,
-          y: 0,
-          duration: 0.82,
-          stagger: 0.075,
-          ease: "power3.out",
-          clearProps: "transform"
-        })
-      });
-    }
 
     const hero = document.querySelector(".hero");
     if (hero) {
@@ -88,10 +108,13 @@
         hero.querySelector(".hero-location")
       ].filter(Boolean);
 
-      gsap.fromTo(heroCopy,
-        { autoAlpha: 0, y: 24 },
-        { autoAlpha: 1, y: 0, duration: 0.9, stagger: 0.13, ease: "power3.out", clearProps: "transform" }
-      );
+      gsap.from(heroCopy, {
+        y: 24,
+        duration: 0.9,
+        stagger: 0.13,
+        ease: "power3.out",
+        clearProps: "transform"
+      });
 
       const wideMotion = gsap.matchMedia();
       wideMotion.add("(min-width: 760px)", () => {
@@ -134,23 +157,5 @@
         return () => controller.abort();
       });
     }
-
-    const revealPhotos = document.querySelectorAll(
-      ".story-photo img, .visit-photo img, .transformation-image img, .gallery-grid .gallery-item img, .payment-photo-card img, .payment-testimonial-card img"
-    );
-    revealPhotos.forEach(image => {
-      gsap.fromTo(image,
-        { clipPath: "inset(5% 0 0 0)", scale: 1.04 },
-        {
-          clipPath: "inset(0% 0 0 0)",
-          scale: 1,
-          duration: 1.1,
-          ease: "power2.out",
-          scrollTrigger: { trigger: image.parentElement, start: "top 88%", once: true }
-        }
-      );
-    });
   });
-
-  window.addEventListener("pagehide", () => context.revert(), { once: true });
 })();
